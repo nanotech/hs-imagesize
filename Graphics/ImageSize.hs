@@ -24,16 +24,10 @@ module Graphics.ImageSize
 -- http://kd5col.info/swag/GRAPHICS/0143.PAS.html
 -- http://hackage.haskell.org/package/imagesize-conduit-1.0.0.2/docs/src/Data-Conduit-ImageSize.html
 
-import Data.Maybe
-import Data.List (find)
 import Control.Applicative
-import Control.Monad (join)
 
-import qualified Data.ByteString as B
 import Data.ByteString (ByteString)
-import Data.Bits (shiftL)
 import Data.Word (Word8, Word16)
-import System.IO (openBinaryFile, IOMode (ReadMode))
 
 import qualified Data.Attoparsec.ByteString as P
 import Data.Attoparsec.Binary
