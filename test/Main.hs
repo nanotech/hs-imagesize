@@ -4,7 +4,6 @@ import qualified Data.ByteString as B
 import qualified Data.Attoparsec.ByteString as P
 import System.IO (openBinaryFile, IOMode (ReadMode))
 import System.Exit (exitFailure)
-import Data.Either (isLeft)
 import Graphics.ImageSize
 
 assert :: String -> Bool -> IO ()
@@ -18,6 +17,10 @@ assert msg x = if x
 assertEq :: (Show a, Eq a) => a -> a -> IO ()
 assertEq x y = do
   assert (show x ++ " == " ++ show y) $ x == y
+
+isLeft :: Either a b -> Bool
+isLeft (Left _) = True
+isLeft (Right _) = False
 
 test :: FilePath -> Maybe (FileFormat, Size) -> IO ()
 test path expected = do
