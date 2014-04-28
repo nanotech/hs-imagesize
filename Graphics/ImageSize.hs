@@ -28,6 +28,7 @@ module Graphics.ImageSize
 --
 -- http://www.asmail.be/msg0055375048.html
 -- http://www.media.mit.edu/pia/Research/deepview/exif.html
+-- http://www.awaresystems.be/imaging/tiff/tifftags/baseline.html
 
 import Control.Applicative
 import Control.Monad (replicateM)
@@ -121,36 +122,28 @@ parseTIFF en = do
   tagCount <- anyWord16 en
   tags <- catMaybes <$> replicateM (fromIntegral tagCount) (parseTIFFTag en)
   case (lookup tiffImageWidthTag tags, lookup tiffImageLengthTag tags) of
-    (Just (wt, w), Just (ht, h)) ->
-      if wt `elem` tiffReadableTypes && ht `elem` tiffReadableTypes
-        then return $ Size w h
-        else fail $ errPre ++ "had unparsable data types"
-    _ -> fail $ errPre ++ "not found"
-  where errPre = "One or both of the ImageWidth and ImageLength TIFF tags were "
+    (Just w, Just h) -> return $ Size w h
+    _ -> fail $ "One or both of the ImageWidth and ImageLength TIFF tags were not found"
 
 tiffImageWidthTag, tiffImageLengthTag :: Word16
 tiffImageWidthTag = 256
 tiffImageLengthTag = 257 -- height, not byte length
 
-tiffReadableTypes :: [Word16]
-tiffReadableTypes = [3, 4] -- inline 16-bit and 32-bit
-
 knownTIFFTags :: [Word16]
 knownTIFFTags = [tiffImageWidthTag , tiffImageLengthTag]
 
-parseTIFFTag :: Num a => Endianness -> Parser (Maybe (Word16, (Word16, a)))
+parseTIFFTag :: Endianness -> Parser (Maybe (Word16, Int))
 parseTIFFTag en = do
   tagID <- anyWord16 en
   if tagID `elem` knownTIFFTags
     then do
       tagType <- anyWord16 en
       _ <- anyWord32 en -- value count; always 1 for these tags
-      tagValue <- case tagType of
-        3 -> fromIntegral <$> anyWord16 en <* P.take 2 -- 16-bit integer
-        4 -> fromIntegral <$> anyWord32 en -- 32-bit integer
-        5 -> fromIntegral <$> anyWord32 en -- file-offset to a rational
-        _ -> fail $ "Unknown TIFF type " ++ show tagType
-      return $ Just (tagID, (tagType, tagValue))
+      mTagValue <- case tagType of
+        3 -> Just . fromIntegral <$> anyWord16 en <* P.take 2
+        4 -> Just . fromIntegral <$> anyWord32 en
+        _ -> return Nothing
+      return $ (tagID,) <$> mTagValue
     else
       P.take 10 -- tags are always 12 bytes. skip the remainder.
       *> pure Nothing
