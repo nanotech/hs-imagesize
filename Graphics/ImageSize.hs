@@ -24,7 +24,7 @@ import Data.Attoparsec.ByteString (Parser)
 data Size = Size { width :: Int, height :: Int }
   deriving (Show, Eq, Ord, Read)
 
-data FileFormat = GIF | PNG | JPEG | TIFF
+data FileFormat = GIF | PNG | JPEG
   deriving (Show, Eq, Ord, Read, Enum)
 
 justIf :: a -> Bool -> Maybe a
@@ -37,18 +37,15 @@ hush :: Either a b -> Maybe b
 hush = either (const Nothing) Just
 
 jpgSignature, gifSignature, pngSignature :: ByteString
-tifSignatures :: [ByteString]
 jpgSignature = "\xff\xd8"
 gifSignature = "GIF8"
 pngSignature = "\x89PNG\r\n\x1a\n" 
-tifSignatures = ["II\42\0", "MM\0\42"] -- there is also ["II\43\0", "MM\0\43"] for BigTIFF
 
 fileFormatMatchers :: [ByteString -> Maybe FileFormat]
 fileFormatMatchers =
   [ justIf JPEG . B.isPrefixOf jpgSignature
   , justIf GIF . B.isPrefixOf gifSignature
   , justIf PNG . B.isPrefixOf pngSignature
-  , \s -> justIf TIFF $ any (`B.isPrefixOf` s) tifSignatures
   ]
 
 -- | Try to detect the format of an image by its magic number (header bytes).
@@ -61,7 +58,6 @@ parseSize readInt n = size <$> P.take n <*> P.take n
   where size w h = Size (readInt w) (readInt h)
 
 -- | A parser that reads the 'Size' of an image with a certain 'FileFormat'.
--- Parsing the size of 'TIFF' images is not currently supported.
 parseImageSize :: FileFormat -> Maybe (Parser Size)
 parseImageSize ff = case ff of
   PNG -> Just $ P.take 16 *> parseSize readBEInt 4
@@ -132,5 +128,4 @@ main = mapM_ test
   [ "test-images/weather.png"
   , "test-images/cereal.jpg"
   , "test-images/pulsar.gif"
-  , "test-images/inf.tif"
   ]
