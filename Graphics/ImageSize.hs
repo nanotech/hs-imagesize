@@ -41,7 +41,7 @@ tifSignatures :: [ByteString]
 jpgSignature = "\xff\xd8"
 gifSignature = "GIF8"
 pngSignature = "\x89PNG\r\n\x1a\n" 
-tifSignatures = ["II\42\0", "MM\0\42", "II\43\0", "MM\0\43"]
+tifSignatures = ["II\42\0", "MM\0\42"] -- there is also ["II\43\0", "MM\0\43"] for BigTIFF
 
 fileFormatMatchers :: [ByteString -> Maybe FileFormat]
 fileFormatMatchers =
