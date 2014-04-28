@@ -110,21 +110,3 @@ parseJPEGSizeSegment = do
 sizeParser :: (Applicative f, Integral a) => f a -> f Size
 sizeParser int = size <$> int <*> int
   where size w h = Size (fromIntegral w) (fromIntegral h)
-
-
-test :: String -> IO ()
-test path = do
-  h <- openBinaryFile path ReadMode
-  print h
-  s <- B.hGet h 200
-  print $ P.parseOnly imageFormatParser s
-  print $ P.parseOnly imageSizeParser s
-  putStrLn ""
-
-main :: IO ()
-main = mapM_ test
-  [ "test-images/weather.png"
-  , "test-images/cereal.jpg"
-  , "test-images/pulsar.gif"
-  , "imagesize.cabal"
-  ]
