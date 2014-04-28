@@ -23,11 +23,18 @@ module Graphics.ImageSize
 -- https://gears.googlecode.com/svn/trunk/third_party/libjpeg/rdjpgcom.c
 -- http://kd5col.info/swag/GRAPHICS/0143.PAS.html
 -- http://hackage.haskell.org/package/imagesize-conduit-1.0.0.2/docs/src/Data-Conduit-ImageSize.html
+--
+-- TIFF parsing references:
+--
+-- http://www.asmail.be/msg0055375048.html
+-- http://www.media.mit.edu/pia/Research/deepview/exif.html
 
 import Control.Applicative
+import Control.Monad (replicateM)
+import Data.Maybe (catMaybes)
 
 import Data.ByteString (ByteString)
-import Data.Word (Word8, Word16)
+import Data.Word
 
 import qualified Data.Attoparsec.ByteString as P
 import Data.Attoparsec.Binary
@@ -38,7 +45,7 @@ data Size = Size { width :: !Int, height :: !Int }
   deriving (Show, Read, Eq, Ord)
 
 -- | The file format of an image.
-data FileFormat = GIF | PNG | JPEG
+data FileFormat = GIF | PNG | JPEG | TIFFBE | TIFFLE
   deriving (Show, Read, Eq, Ord, Enum)
 
 allFileFormats :: [FileFormat]
@@ -49,6 +56,8 @@ formatSignature ff = case ff of
   PNG  -> "\x89PNG\r\n\x1a\n"
   JPEG -> "\xff\xd8"
   GIF  -> "GIF"
+  TIFFLE -> "II\42\0"
+  TIFFBE -> "MM\0\42"
 
 
 -- | Tries to detect the format of an image by its magic number (header bytes).
@@ -75,6 +84,9 @@ imageInfoParser = do
       P.take 3 -- skip version bytes; 87a or 89a
       *> sizeParser anyWord16le
 
+    TIFFBE -> parseTIFF Big
+    TIFFLE -> parseTIFF Little
+
     JPEG -> parseJPEGSizeSegment
 
 
@@ -98,6 +110,64 @@ parseJPEGSizeSegment = do
     else do
       _ <- P.take $ fromIntegral segmentLen
       parseJPEGSizeSegment
+
+
+-- TIFF parsing
+
+parseTIFF :: Endianness -> Parser Size
+parseTIFF en = do
+  firstImageOffset <- anyWord32 en -- an absolute offset into the file
+  _ <- P.take $ fromIntegral firstImageOffset - 8
+  tagCount <- anyWord16 en
+  tags <- catMaybes <$> replicateM (fromIntegral tagCount) (parseTIFFTag en)
+  case (lookup tiffImageWidthTag tags, lookup tiffImageLengthTag tags) of
+    (Just (wt, w), Just (ht, h)) ->
+      if wt `elem` tiffReadableTypes && ht `elem` tiffReadableTypes
+        then return $ Size w h
+        else fail $ errPre ++ "had unparsable data types"
+    _ -> fail $ errPre ++ "not found"
+  where errPre = "One or both of the ImageWidth and ImageLength TIFF tags were "
+
+tiffImageWidthTag, tiffImageLengthTag :: Word16
+tiffImageWidthTag = 256
+tiffImageLengthTag = 257 -- height, not byte length
+
+tiffReadableTypes :: [Word16]
+tiffReadableTypes = [3, 4] -- inline 16-bit and 32-bit
+
+knownTIFFTags :: [Word16]
+knownTIFFTags = [tiffImageWidthTag , tiffImageLengthTag]
+
+parseTIFFTag :: Num a => Endianness -> Parser (Maybe (Word16, (Word16, a)))
+parseTIFFTag en = do
+  tagID <- anyWord16 en
+  if tagID `elem` knownTIFFTags
+    then do
+      tagType <- anyWord16 en
+      _ <- anyWord32 en -- value count; always 1 for these tags
+      tagValue <- case tagType of
+        3 -> fromIntegral <$> anyWord16 en <* P.take 2 -- 16-bit integer
+        4 -> fromIntegral <$> anyWord32 en -- 32-bit integer
+        5 -> fromIntegral <$> anyWord32 en -- file-offset to a rational
+        _ -> fail $ "Unknown TIFF type " ++ show tagType
+      return $ Just (tagID, (tagType, tagValue))
+    else
+      P.take 10 -- tags are always 12 bytes. skip the remainder.
+      *> pure Nothing
+
+
+-- Endian-parameterized parsing
+
+data Endianness = Big | Little
+  deriving (Show, Eq)
+
+anyWord16 :: Endianness -> Parser Word16
+anyWord16 Big    = anyWord16be
+anyWord16 Little = anyWord16le
+
+anyWord32 :: Endianness -> Parser Word32
+anyWord32 Big    = anyWord32be
+anyWord32 Little = anyWord32le
 
 
 -- | Parse a pair of integers using the given parser.

@@ -26,7 +26,7 @@ test :: FilePath -> Maybe (FileFormat, Size) -> IO ()
 test path expected = do
   putStrLn $ "# " ++ path
   h <- openBinaryFile path ReadMode
-  s <- B.hGet h 200
+  s <- B.hGet h 4096
   let eff = P.parseOnly imageFormatParser s
       esz = P.parseOnly imageSizeParser s
       einfo = P.parseOnly imageInfoParser s
@@ -51,5 +51,6 @@ main = mapM_ (uncurry test)
   [ ("test/images/weather.png", Just (PNG, Size 62 63))
   , ("test/images/cereal.jpg", Just (JPEG, Size 150 112))
   , ("test/images/pulsar.gif", Just (GIF, Size 124 89))
+  , ("test/images/inf.tif", Just (TIFFBE, Size 34 23))
   , ("imagesize.cabal", Nothing)
   ]
