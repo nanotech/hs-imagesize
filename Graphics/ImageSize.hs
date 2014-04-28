@@ -32,10 +32,11 @@ import Control.Monad (join)
 import qualified Data.ByteString as B
 import Data.ByteString (ByteString)
 import Data.Bits (shiftL)
-import Data.Word (Word8)
+import Data.Word (Word8, Word16)
 import System.IO (openBinaryFile, IOMode (ReadMode))
 
 import qualified Data.Attoparsec.ByteString as P
+import Data.Attoparsec.Binary
 import Data.Attoparsec.ByteString (Parser)
 
 -- | The pixel dimensions of an image.
@@ -74,22 +75,22 @@ imageInfoParser = do
   (,ff) <$> case ff of
     PNG ->
       P.take 8 -- skip IHDR chunk length and type
-      *> sizeParser readBEInt 4
+      *> sizeParser anyWord32be
 
     GIF -> do
       P.take 3 -- skip version bytes; 87a or 89a
-      *> sizeParser readLEInt 2
+      *> sizeParser anyWord16le
 
     JPEG -> parseJPEGSizeSegment
 
 
 -- JPEG parsing
 
-parseJPEGSegment :: Parser (Word8, Int)
+parseJPEGSegment :: Parser (Word8, Word16)
 parseJPEGSegment = do
   P.skipWhile (== 0xFF) -- segment start with optional padding
   segmentType <- P.anyWord8
-  segmentLen <- readBEInt <$> P.take 2
+  segmentLen <- anyWord16be
   return (segmentType, segmentLen - 2) -- subtract because the length includes the length bytes themselves
 
 parseJPEGSizeSegment :: Parser Size
@@ -98,28 +99,17 @@ parseJPEGSizeSegment = do
   if segmentType >= 0xC0 && segmentType <= 0xCF -- SOFn
     then do
       _ <- P.anyWord8 -- skip the data precision field
-      Size h w <- sizeParser readBEInt 2
+      Size h w <- sizeParser anyWord16be
       return $ Size w h -- JPEG writes the size backwards compared to other formats
     else do
-      _ <- P.take segmentLen
+      _ <- P.take $ fromIntegral segmentLen
       parseJPEGSizeSegment
 
 
--- | Parse a pair of integers of a certain width in bytes.
-sizeParser :: (ByteString -> Int) -> Int -> Parser Size
-sizeParser readInt n = size <$> P.take n <*> P.take n
-  where size w h = Size (readInt w) (readInt h)
-
--- | Interpret a 'ByteString' as an unsigned big-endian integer.
-readBEInt :: ByteString -> Int
-readBEInt = readSomeInt B.foldr
-
--- | Interpret a 'ByteString' as an unsigned little-endian integer.
-readLEInt :: ByteString -> Int
-readLEInt = readSomeInt $ B.foldl . flip
-
-readSomeInt :: Integral byte => ((byte -> (Int, Int) -> (Int, Int)) -> (Int, Int) -> a -> (c, b)) -> a -> c
-readSomeInt fold = fst . fold (\c (a,i) -> (a + (fromIntegral c `shiftL` i), i + 8)) (0,0)
+-- | Parse a pair of integers using the given parser.
+sizeParser :: (Applicative f, Integral a) => f a -> f Size
+sizeParser int = size <$> int <*> int
+  where size w h = Size (fromIntegral w) (fromIntegral h)
 
 
 test :: String -> IO ()
