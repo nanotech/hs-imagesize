@@ -36,7 +36,6 @@ import Data.Word (Word8)
 import System.IO (openBinaryFile, IOMode (ReadMode))
 
 import qualified Data.Attoparsec.ByteString as P
-import qualified Data.Attoparsec.Combinator as P
 import Data.Attoparsec.ByteString (Parser)
 
 -- | The pixel dimensions of an image.
