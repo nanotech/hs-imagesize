@@ -128,4 +128,5 @@ main = mapM_ test
   [ "test-images/weather.png"
   , "test-images/cereal.jpg"
   , "test-images/pulsar.gif"
+  , "imagesize.cabal"
   ]
