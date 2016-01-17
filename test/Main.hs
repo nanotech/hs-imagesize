@@ -49,8 +49,8 @@ test path expected = do
 main :: IO ()
 main = mapM_ (uncurry test)
   [ ("test/images/weather.png", Just (PNG, Size 62 63))
-  , ("test/images/cereal.jpg", Just (JPEG, Size 150 112))
+  , ("test/images/cereal.jpg", Just (JPEG JFIF, Size 150 112))
   , ("test/images/pulsar.gif", Just (GIF, Size 124 89))
-  , ("test/images/inf.tif", Just (TIFFBE, Size 34 23))
+  , ("test/images/inf.tif", Just (TIFF Big, Size 34 23))
   , ("imagesize.cabal", Nothing)
   ]
