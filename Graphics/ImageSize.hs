@@ -32,10 +32,8 @@ module Graphics.ImageSize
 -- http://www.media.mit.edu/pia/Research/deepview/exif.html
 -- http://www.awaresystems.be/imaging/tiff/tifftags/baseline.html
 
-import Control.Applicative
 import Control.Monad (replicateM)
 import Data.Maybe (catMaybes)
-import Debug.Trace
 
 import Data.ByteString (ByteString)
 import Data.Word
@@ -137,7 +135,6 @@ parseJPEGSegment = do
   P.skipWhile (== 0xFF) -- segment start with optional padding
   segmentType <- P.anyWord8
   segmentLen <- anyWord16be
-  --traceShowM (segmentType, segmentLen)
   return (segmentType, segmentLen - 2) -- subtract because the length includes the length bytes themselves
 
 parseJPEGSizeSegment :: Parser Size
@@ -159,10 +156,8 @@ parseTIFF :: Int -> Endianness -> Parser Size
 parseTIFF currentOffset en = do
   firstImageOffset <- fromIntegral <$> anyWord32 en -- an absolute offset into the file
   let currentOffset' = currentOffset + 4
-  --traceShowM firstImageOffset
   _ <- P.take $ firstImageOffset - currentOffset'
   let currentOffset'' = firstImageOffset
-  --traceShowM (currentOffset'', currentOffset')
   allTags <- parseTIFFIFD en
   let currentOffset''' = currentOffset'' + 2 + length allTags * tiffTagLength
   let tags = catMaybes allTags
@@ -176,8 +171,6 @@ parseTIFF currentOffset en = do
           _ <- P.take $ fromIntegral offset - currentOffset'''
           allExifTags <- parseTIFFIFD en
           let exifTags = catMaybes allExifTags
-          --traceShowM (offset, offset - (currentOffset + 6 + length allTags * tiffTagLength))
-          --traceShowM (length allTags, exifTags)
           maybe kaboom return $ findSizeTags exifTagImageWidth exifTagImageHeight exifTags
         Nothing -> kaboom
 
@@ -189,7 +182,6 @@ findSizeTags wt ht tags = Size <$> lookup wt tags <*> lookup ht tags
 parseTIFFIFD :: Endianness -> Parser [Maybe (Word16, Int)]
 parseTIFFIFD en = do
   tagCount <- anyWord16 en
-  --traceShowM tagCount
   replicateM (fromIntegral tagCount) (parseTIFFTag en)
 
 tiffTagImageWidth, tiffTagImageLength, tiffTagExifOffset :: Word16
@@ -216,10 +208,6 @@ knownTIFFTags =
 parseTIFFTag :: Endianness -> Parser (Maybe (Word16, Int))
 parseTIFFTag en = do
   tagID <- anyWord16 en
-  --let currentOffset = 10
-  --let bytesRead = currentOffset + tagIndex * tiffTagLength
-  --traceShowM (tagIndex, bytesRead, "id" :: String, tagID)
-  --traceShowM ("id" :: String, tagID)
   if tagID `elem` knownTIFFTags
     then do
       mTagValue <- parseTIFFTagValue en
@@ -231,13 +219,11 @@ parseTIFFTag en = do
 parseTIFFTagValue :: Endianness -> Parser (Maybe Int)
 parseTIFFTagValue en = do
   tagType <- anyWord16 en
-  --traceShowM ("type" :: String, tagType)
   _ <- anyWord32 en -- value count; always 1 for these tags
   mTagValue <- case tagType of
     3 -> Just . fromIntegral <$> anyWord16 en <* P.take 2
     4 -> Just . fromIntegral <$> anyWord32 en
     _ -> return Nothing
-  --traceShowM ("val" :: String, mTagValue)
   return mTagValue
 
 
